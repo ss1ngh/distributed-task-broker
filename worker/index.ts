@@ -54,3 +54,15 @@ worker.on("completed", (job) => {
 worker.on("failed", (job, err) => {
   console.log(`Job ${job?.id} failed: ${err.message}`);
 });
+
+async function gracefulShutdown(signal: string) {
+  console.log(`\nReceived ${signal}, shutting down worker...`);
+  // close() stops accepting new jobs and gracefully waits for active jobs to finish
+  await worker.close();
+  connection.quit();
+  console.log("Worker Graceful shutdown complete.");
+  process.exit(0);
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

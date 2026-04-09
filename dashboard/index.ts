@@ -20,6 +20,20 @@ createBullBoard({
 const app = express();
 app.use("/ui", serverAdapter.getRouter());
 
-app.listen(config.DASHBOARD_PORT, () => {
+const server = app.listen(config.DASHBOARD_PORT, () => {
   console.log(`Admin Dashboard running on http://localhost:${config.DASHBOARD_PORT}/ui`);
 });
+
+async function gracefulShutdown(signal: string) {
+  console.log(`\nReceived ${signal}, shutting down dashboard...`);
+  //stops taking new requests
+  server.close(async () => {
+    //then cuts the Redis connection
+    connection.quit();
+    console.log("Dashboard Graceful shutdown complete.");
+    process.exit(0);
+  });
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

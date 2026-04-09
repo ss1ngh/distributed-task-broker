@@ -41,7 +41,7 @@ type WebSocketData = {
   jobId: string;
 };
 
-Bun.serve<WebSocketData>({
+const server = Bun.serve<WebSocketData>({
   port: config.API_PORT,
 
   async fetch(req, server) {
@@ -114,3 +114,30 @@ Bun.serve<WebSocketData>({
     message(ws, message) {},
   },
 });
+
+async function gracefulShutdown(signal: string) {
+  console.log(`\nReceived ${signal}, starting graceful shutdown...`);
+  
+  //stop accepting new HTTP or websocket connections
+  server.stop(true);
+  
+  //safely close out the active connections map
+  for (const [jobId, ws] of activeConnections.entries()) {
+    ws.send(JSON.stringify({ status: "failed", error: "Server shutting down" }));
+    ws.close();
+  }
+  activeConnections.clear();
+  
+  //stop queue producers and events safely
+  await taskQueue.close();
+  await queueEvents.close();
+  
+  //safely disconnect Redis
+  connection.quit();
+  
+  console.log("API Graceful shutdown complete.");
+  process.exit(0);
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
